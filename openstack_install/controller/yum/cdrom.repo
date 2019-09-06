@@ -1,0 +1,10 @@
+[cdrom]
+name=cdrom
+enabled=1
+gpgcheck=0
+baseurl=http://172.16.66.66/centos/7
+[epel]
+name=epel
+baseurl=https://mirrors.aliyun.com/epel/7/x86_64/
+enabled=1
+gpgcheck=0
