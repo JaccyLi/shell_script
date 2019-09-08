@@ -1,4 +1,11 @@
 #!/bin/bash
+#参数修改
+#└----1.安装目录
+install_dir="/apps/redis"
+echo "安装目录：$install_dir"
+echo "否则请停止，修改脚本"
+read -s -n1 -p "按任意键继续 ... "
+
 #函数
 secho() {
 	cols=`tput cols`
@@ -7,16 +14,15 @@ secho() {
 	done
 }
 gecho() {
-	secho
 	echo -e "\e[1;32m $1 \e[0m"
+	secho
 	sleep 1
 }
 recho() {
-	secho
 	echo -e "\e[1;31m $1 \e[0m"
+	secho
 	sleep 1
 }
-
 
 ############下载解压redis4.0.14################
 curl http://download.redis.io/releases/ > re.txt
@@ -28,7 +34,22 @@ for i in $relea;do
 [[ $i =~ [0-9] ]] && echo $i
 done
 
+redir=`ls -1d redis*|grep "redis.*[0-9]$"`
+rm -rf $redir
+echo "0: 选择本地(同目录下)"
 read -p "选择大版本：" version
+if [ "$version" -eq 0 ] ; then
+line=`ls -1 redis*tar*|wc -l`
+refile=`ls -1 redis*tar*`
+	if [ "$line" -eq 1 ];then
+		echo -ne "安装${refile} [y/n]: "
+		read yesorno
+		[[ "$yesorno" =~ [yY] ]] && tar xf ${refile} && dir=`echo ${refile} | sed -r 's#(^.*)\.tar.*$#\1#'`
+	else
+		echo "你目录下有多个版本" && exit
+	fi
+
+else
 [[ "$version" =~ [0-9]+ ]] || exit
 rel=`grep -o 'href=.*gz"' re.txt | cut -d\" -f2 | grep redis-$version`
 j=1
@@ -40,18 +61,19 @@ done
 read -p "选择要下载的版本：" down_ver
 [[ "$down_ver" =~ [0-9]+ ]] || exit
 
+gecho "脚本开始"
 gecho "下载解压redis4.0.14"
 wget http://download.redis.io/releases/${ver[down_ver]}
 tar xf ${ver[down_ver]}
 dir=`echo ${ver[down_ver]} | sed -r 's#(^.*)\.tar.*$#\1#'`
+fi
+
 cd $dir
 ###############################################
 
 rm -f re.txt
 
-#参数修改
-#└----1.安装目录
-install_dir="/apps/redis"
+
 
 
 #环境安装
@@ -106,7 +128,6 @@ gecho "启动服务"
 useradd -s /sbin/nologin redis  || recho "redis用户已存在"
 chown redis.redis -R ${install_dir}
 systemctl daemon-reload
-systemctl restart redis
 systemctl enable redis
 ln -sv ${install_dir}/bin/redis* /usr/local/sbin
 
@@ -114,4 +135,5 @@ ln -sv ${install_dir}/bin/redis* /usr/local/sbin
 gecho "修改配置文件"
 sed -i "s@^dir.*@dir \"${install_dir}/data\"@" ${install_dir}/etc/redis.conf
 sed -i "/^logfile/s#^.*\$#logfile \"${install_dir}/log/redis.log\"#" ${install_dir}/etc/redis.conf
-
+sed -i '/^bind/s#^.*$#bind 0.0.0.0#' ${install_dir}/etc/redis.conf
+systemctl restart redis
