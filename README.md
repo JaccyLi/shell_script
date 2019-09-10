@@ -7,3 +7,7 @@
 ## redis
 
 ## mysql
+
+## openstack
+
+## lamp
