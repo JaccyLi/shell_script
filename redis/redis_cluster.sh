@@ -22,58 +22,21 @@ echo "在开始前要确保你的redis已经配置好了，
 
 ###首次运行
 
-clear
-[ ! -e cluster.txt ] && echo -e "\e[1;4;32m初始化需知：\e[0m" && echo "按任意键进入编辑文本
-填写其它集群节点的ip和密码" && echo "# 例：192.168.99.11 passwd123" > cluster.txt && trap 'vim cluster.txt; bash $0' 0 && read -s -n1 -p "按任意键继续 ... " && exit
-read -p "输入本机密码:" local_pass
+
+confdir="/etc/mssh"
+mkdir -p $confdir &> /dev/null
+[ ! -e $confdir/cluster.conf ] && echo -e "\e[1;4;32m初始化需知：\e[0m" && echo "按任意键进入编辑文本
+填写其它集群节点的ip，确保已经配置了免密登录" && echo "# 例：192.168.99.11 " > $confdir/cluster.conf 
+read -s -n1 -p "按任意键继续 ... "
+vim  $confdir/cluster.conf 
+
+
+
+
+ips=`awk '/^(([1-9]?[0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])[.]){3}([1-9]?[0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/{print $1}' $confdir/cluster.conf `
+
 
 gecho "脚本开始"
-first_char=`awk 'NR>1{print $1}' cluster.txt`
-if [[ $first_char =~ ".*#.*" ]];then
-    recho "你的cluster.txt文件格式有错，
-或者没有有效的IP地址"
-else
-    ips=$first_char
-    passs=`awk 'NR>1{print $2}' cluster.txt`
-fi
-
-i=1
-for j in $ips ; do
-	[ -z $j ] && echo "cluster文件格式有错" && exit
-    ip[i]=$j
-    let i++
-done
-
-i=1
-for y in $passs; do
-	[ -z $y ] && echo "cluster文件格式有错" && exit
-    pass[i]=$y
-    let i++
-done
-
-gecho "配置免密登录"
-yum install -y expect
-rm -f /root/.ssh/id*
-ssh-keygen -t rsa -N '' -f /root/.ssh/id_rsa -q
-expect<<EOF
-spawn ssh-copy-id root@127.0.0.1
-expect {
-    "yes/no" { send "yes\n";exp_continue }
-    "password:" { send "${local_pass}\n" }
-}
-expect eof
-EOF
-
-for i in `seq ${#ip[*]}`;do
-expect<<EOF
-spawn scp -r /root/.ssh root@${ip[$i]}:/root/
-expect {
-    "yes/no" { send "yes\n";exp_continue }
-    "password:" { send "${pass[$i]}\n" }
-}
-expect eof
-EOF
-done
 
 gecho "开始打包"
 kedir=`find / -name redis -type d`
@@ -85,34 +48,34 @@ done
 
 cd $install_dir
 tmpdir="/root/cluster"
-mkdir $tmpdir
+mkdir $tmpdir &> /dev/null
 tar zcf $tmpdir/redis.tar.gz *
 
 gecho "开始部署其它集群节点"
-for i in `seq ${#ip[*]}`;do
+for i in $ips;do
 #创建用户
-	ssh ${ip[$i]} "useradd -s /sbin/nologin redis"
+	ssh $i "useradd -s /sbin/nologin redis"
 #创建目录
-	ssh ${ip[$i]} "mkdir -p ${install_dir}"
+	ssh $i "mkdir -p ${install_dir}"
 #传送主目录
-	scp $tmpdir/redis.tar.gz ${ip[$i]}:/root
+	scp $tmpdir/redis.tar.gz $i:/root
 #解压
-	ssh ${ip[$i]} "tar xf /root/redis.tar.gz -C ${install_dir}"
+	ssh $i "tar xf /root/redis.tar.gz -C ${install_dir}"
 #传送启动服务
-	scp /usr/lib/systemd/system/redis.service ${ip[$i]}:/usr/lib/systemd/system/
+	scp /usr/lib/systemd/system/redis.service $i:/usr/lib/systemd/system/
 #传送软连接
-	ssh ${ip[$i]} "ln -sv ${install_dir}/bin/redis* /usr/local/sbin/"
+	ssh $i "ln -sv ${install_dir}/bin/redis* /usr/local/sbin/"
 #启动服务
-	ssh ${ip[$i]} "systemctl daemon-reload"
-	ssh ${ip[$i]} "systemctl restart redis"
-	ssh ${ip[$i]} "systemctl enable redis"
+	ssh $i "systemctl daemon-reload"
+	ssh $i "systemctl restart redis"
+	ssh $i "systemctl enable redis"
 	
-	ssh ${ip[$i]} "echo 'net.core.somaxconn = 512' > /etc/sysctl.conf"
-	ssh ${ip[$i]} "echo 'vm.overcommit_memory = 1' >> /etc/sysctl.conf"
-	ssh ${ip[$i]} "sysctl -p "
-	ssh ${ip[$i]} "echo never > /sys/kernel/mm/transparent_hugepage/enabled"
-	ssh ${ip[$i]} "echo 'echo never > /sys/kernel/mm/transparent_hugepage/enabled' >> /etc/rc.local "
-	ssh ${ip[$i]} "chmod +x /etc/rc.local "
+	ssh $i "echo 'net.core.somaxconn = 512' > /etc/sysctl.conf"
+	ssh $i "echo 'vm.overcommit_memory = 1' >> /etc/sysctl.conf"
+	ssh $i "sysctl -p "
+	ssh $i "echo never > /sys/kernel/mm/transparent_hugepage/enabled"
+	ssh $i "echo 'echo never > /sys/kernel/mm/transparent_hugepage/enabled' >> /etc/rc.local "
+	ssh $i "chmod +x /etc/rc.local "
 	
 done
 

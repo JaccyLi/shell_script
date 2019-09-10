@@ -25,10 +25,9 @@ recho() {
 }
 
 ############下载解压redis4.0.14################
-curl http://download.redis.io/releases/ > re.txt
+curl http://106.53.11.101/sh/redis/release/ > re.txt
 grep -o 'href=.*gz"' re.txt &> /dev/null || { echo "下载失败" ; exit ; }
-relea=`grep -o 'href=.*gz"' re.txt | cut -d\" -f2 | awk -F"[-|.]" '{
-print $2}' | uniq`
+relea=`grep -o 'href=.*gz"' re.txt | cut -d\" -f2 | awk -F"[-|.]" '{print $2}' | uniq`
 clear
 for i in $relea;do
 [[ $i =~ [0-9] ]] && echo $i
@@ -63,7 +62,7 @@ read -p "选择要下载的版本：" down_ver
 
 gecho "脚本开始"
 gecho "下载解压redis4.0.14"
-wget http://download.redis.io/releases/${ver[down_ver]}
+wget http://106.53.11.101/sh/redis/release/${ver[down_ver]}
 tar xf ${ver[down_ver]}
 dir=`echo ${ver[down_ver]} | sed -r 's#(^.*)\.tar.*$#\1#'`
 fi
